@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Orange rounded-square background -->
+  <rect width="32" height="32" rx="7" fill="#ff8c00"/>
+
+  <!-- Megaphone handle (navy) -->
+  <rect x="3" y="13" width="5.5" height="7" rx="1.5" fill="#1a2f5c"/>
+
+  <!-- Horn body: trapezoid wider at right -->
+  <path d="M8.5 11 L26.5 5.5 L26.5 26.5 L8.5 21 Z" fill="white"/>
+
+  <!-- Bell rim: slightly darker white strip at the opening -->
+  <line x1="26.5" y1="5.5" x2="26.5" y2="26.5" stroke="#e8e8e8" stroke-width="2"/>
+
+  <!-- Broadcast dots (3 small arcs radiating from bell) -->
+  <circle cx="29" cy="11" r="1.1" fill="white" opacity="0.75"/>
+  <circle cx="29.5" cy="16" r="1.1" fill="white" opacity="0.75"/>
+  <circle cx="29" cy="21" r="1.1" fill="white" opacity="0.75"/>
+</svg>
