@@ -1,0 +1,39 @@
+{
+  "name": "ashutosh-pathak-site",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test:e2e": "next build && node scripts/e2e.mjs all"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.88.0",
+    "@react-three/fiber": "^8.15.0",
+    "@react-three/postprocessing": "^2.19.1",
+    "gsap": "^3.12.5",
+    "next": "^14.2.35",
+    "postprocessing": "~6.35.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "three": "^0.159.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/three": "^0.159.0",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.2.35",
+    "playwright-core": "^1.63.0",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "postprocessing": "$postprocessing"
+  }
+}
