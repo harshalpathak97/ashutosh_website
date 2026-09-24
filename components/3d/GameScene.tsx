@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useRef, useEffect, useLayoutEffect, useMemo, useState, memo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Text, Billboard, RoundedBox, Environment, Lightformer, Sparkles, useTexture } from '@react-three/drei'
-import { EffectComposer, N8AO, Bloom, Vignette } from '@react-three/postprocessing'
+import { EffectComposer, Bloom, SMAA, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import type { Zone } from '../GamePortfolio'
 import { WORK } from '../content'
@@ -769,35 +769,38 @@ function SkyDome() {
   )
 }
 
-// Soft, mottled grass so the ground isn't one flat colour
-function useGrassTexture() {
-  return useMemo(() => {
-    const size = 512
-    const canvas = document.createElement('canvas')
-    canvas.width = canvas.height = size
-    const ctx = canvas.getContext('2d')!
-    ctx.fillStyle = C.grass
-    ctx.fillRect(0, 0, size, size)
+// Soft, mottled grass so the ground isn't one flat colour. Vertex colours rather than a
+// canvas texture: Chrome dithers canvas gradients, which showed up as a dimpled pattern.
+function Ground() {
+  const geometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(300, 300, 150, 150)
+    g.rotateX(-Math.PI / 2)
     const rand = mulberry32(3)
-    for (let i = 0; i < 90; i++) {
-      const x = rand() * size, y = rand() * size, r = 60 + rand() * 120
-      const light = rand() > 0.5
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r)
-      g.addColorStop(0, light ? 'rgba(220,240,170,0.16)' : 'rgba(120,175,90,0.12)')
-      g.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.fillStyle = g
-      // Draw wrapped copies so the texture tiles seamlessly
-      for (const dx of [-size, 0, size]) for (const dy of [-size, 0, size]) {
-        ctx.save(); ctx.translate(dx, dy); ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.restore()
-      }
+    const waves = Array.from({ length: 4 }, (_, i) => ({
+      fx: (0.05 + rand() * 0.08) * (i + 1), fz: (0.05 + rand() * 0.08) * (i + 1),
+      px: rand() * 6.28, pz: rand() * 6.28, amp: 0.07 / (i + 1),
+    }))
+    const base = new THREE.Color(C.grass)
+    const light = new THREE.Color('#d2eca4')
+    const dark = new THREE.Color('#86b866')
+    const c = new THREE.Color()
+    const pos = g.attributes.position
+    const colors = new Float32Array(pos.count * 3)
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i)
+      let n = 0
+      for (const w of waves) n += Math.sin(x * w.fx + w.px) * Math.cos(z * w.fz + w.pz) * w.amp
+      c.copy(base).lerp(n > 0 ? light : dark, Math.min(1, Math.abs(n) * 3.5))
+      colors.set([c.r, c.g, c.b], i * 3)
     }
-    const tex = new THREE.CanvasTexture(canvas)
-    tex.colorSpace = THREE.SRGBColorSpace
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-    tex.repeat.set(7, 7)
-    tex.anisotropy = 4
-    return tex
+    g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    return g
   }, [])
+  return (
+    <mesh geometry={geometry} receiveShadow>
+      <meshStandardMaterial vertexColors roughness={1} />
+    </mesh>
+  )
 }
 
 function Hills() {
@@ -902,12 +905,15 @@ function ZoneSparkles() {
   )
 }
 
-// Desktop-quality post-processing: contact shadows (AO), glow on emissives, vignette
-export function Effects() {
+// Desktop post-processing: glow on emissives + vignette, with cheap SMAA antialiasing.
+// (SSAO was tried and dropped: banding on the big flat ground and ~2x frame cost.)
+// When the frame rate struggles only bloom is dropped: removing the composer itself
+// would switch render targets and force every material to recompile (a visible freeze).
+export function Effects({ full }: { full: boolean }) {
   return (
-    <EffectComposer multisampling={4}>
-      <N8AO aoRadius={0.9} intensity={1.5} distanceFalloff={1} quality="medium" />
-      <Bloom luminanceThreshold={1.1} luminanceSmoothing={0.2} intensity={0.55} mipmapBlur />
+    <EffectComposer multisampling={0}>
+      {full ? <Bloom luminanceThreshold={1.1} luminanceSmoothing={0.2} intensity={0.55} mipmapBlur /> : <></>}
+      <SMAA />
       <Vignette offset={0.3} darkness={0.28} />
     </EffectComposer>
   )
@@ -923,11 +929,11 @@ function Limb({ size, color, position }: { size: [number, number, number]; color
 }
 
 // ─── Main scene ───────────────────────────────────────────────────────────────
-export default function GameScene({
+function GameScene({
   onZoneChange, onCoinCollect, onScooterToggle, onFirstMove, onRingCollect, onBoostActivate,
   touchInputRef, scooterTriggerRef, jumpTriggerRef, teleportTargetRef, cinematicRef,
 }: Props) {
-  const { camera, size } = useThree()
+  const { camera, size, scene } = useThree()
 
   useEffect(() => {
     const cam = camera as THREE.PerspectiveCamera
@@ -937,6 +943,8 @@ export default function GameScene({
 
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches, [])
+  // ?debug exposes read-only game state on window.__game for end-to-end tests
+  const debug = useMemo(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'), [])
 
   // Scene refs
   const sunRef = useRef<THREE.DirectionalLight>(null)
@@ -1013,7 +1021,8 @@ export default function GameScene({
   }, [onScooterToggle, cinematicRef])
 
   useFrame((state, rawDt) => {
-    const dt = Math.min(rawDt, 1 / 30)
+    // Clamp so a stalled tab doesn't teleport the player; 1/20 keeps real speed down to 20 fps
+    const dt = Math.min(rawDt, 1 / 20)
     const t = state.clock.elapsedTime
     const cinematic = cinematicRef?.current ?? false
     windUniform.value = t
@@ -1167,8 +1176,8 @@ export default function GameScene({
     }
     if (!hop.current && nearest !== activeZoneRef.current) { activeZoneRef.current = nearest; onZoneChange(nearest) }
 
-    // ── Coins ─────────────────────────────────────────────────────────────
-    COIN_DATA.forEach(({ pos: p }, i) => {
+    // ── Coins (not while hopping across the map via nav/tour) ─────────────
+    if (!hop.current) COIN_DATA.forEach(({ pos: p }, i) => {
       if (collectedRef.current.has(i)) return
       if ((pos.current.x - p[0]) ** 2 + (pos.current.z - p[2]) ** 2 < 1.2) {
         collectedRef.current.add(i)
@@ -1178,7 +1187,7 @@ export default function GameScene({
     })
 
     // ── Rings (scooter + jump required) ───────────────────────────────────
-    if (onScooter && jump.current.y > 0.25) {
+    if (onScooter && jump.current.y > 0.25 && !hop.current) {
       RING_DATA.forEach(({ pos: p }, i) => {
         if (collectedRingsRef.current.has(i)) return
         if ((pos.current.x - p[0]) ** 2 + (pos.current.z - p[2]) ** 2 < 2.25) {
@@ -1190,7 +1199,7 @@ export default function GameScene({
     }
 
     // ── Boost pads (scooter only) ─────────────────────────────────────────
-    if (onScooter && boostLeft.current <= 0) {
+    if (onScooter && boostLeft.current <= 0 && !hop.current) {
       for (const p of BOOST_PADS) {
         if ((pos.current.x - p[0]) ** 2 + (pos.current.z - p[2]) ** 2 < 2.25) {
           boostLeft.current = BOOST_TIME
@@ -1225,6 +1234,17 @@ export default function GameScene({
     }
     camera.lookAt(camLook.current)
 
+    if (debug) {
+      const w = window as unknown as { __game?: Record<string, unknown> }
+      const frames = ((w.__game?.frames as number) ?? 0) + 1
+      ;(w as unknown as { __scene: THREE.Scene }).__scene = scene
+      w.__game = {
+        x: pos.current.x, z: pos.current.z, y: jump.current.y + lift, speed, yaw: yaw.current,
+        zone: activeZoneRef.current, scooter: onScooter, hopping: !!hop.current, cinematic,
+        coins: collectedRef.current.size, rings: collectedRingsRef.current.size, frames,
+      }
+    }
+
     // Sun follows the player so a tight shadow frustum stays sharp
     const sun = sunRef.current
     if (sun) {
@@ -1236,7 +1256,6 @@ export default function GameScene({
   })
 
   const shadowExtent = size.width < size.height ? 26 : 20
-  const grassTex = useGrassTexture()
 
   return (
     <>
@@ -1268,10 +1287,7 @@ export default function GameScene({
 
       {/* ── Ground ───────────────────────────────────────────────────────── */}
       <SkyDome />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[150, 64]} />
-        <meshStandardMaterial map={grassTex} roughness={1} />
-      </mesh>
+      <Ground />
       <Hills />
       <Clouds />
       <Pond />
@@ -1396,3 +1412,6 @@ export default function GameScene({
     </>
   )
 }
+
+// Memoised: HUD/toast state changes in the parent shouldn't re-render the whole world
+export default memo(GameScene)

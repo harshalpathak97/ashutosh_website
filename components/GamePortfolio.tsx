@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect, Suspense } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { PerformanceMonitor } from '@react-three/drei'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { PerformanceMonitor, Preload } from '@react-three/drei'
 import ZonePanel, { MailIcon, LinkedInIcon } from './UI/ZonePanel'
 import ControlsHint from './UI/ControlsHint'
 import MissionHUD, { INITIAL_MISSIONS, type Mission } from './UI/MissionHUD'
@@ -50,8 +50,12 @@ function hasWebGL() {
   }
 }
 
+// Keeps the loader up until a few frames have rendered, hiding first-frame shader compiles
 function Ready({ onReady }: { onReady: () => void }) {
-  useEffect(onReady, [onReady])
+  const frames = useRef(0)
+  useFrame(() => {
+    if (++frames.current === 10) onReady()
+  })
   return null
 }
 
@@ -67,10 +71,13 @@ export default function GamePortfolio() {
   const [isOnScooter, setIsOnScooter] = useState(false)
   const [hasMoved, setHasMoved] = useState(false)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
-  const [isMobile, setIsMobile] = useState(false)
-  const [dpr, setDpr] = useState(1.5)
-  // Post-processing only on desktop; dropped if the frame rate struggles
-  const [hq, setHq] = useState(false)
+  // This component is client-only (ssr: false), so device checks can run in initialisers.
+  // Deciding quality before the first frame avoids a shader recompile when effects switch on.
+  const [isMobile] = useState(() => window.matchMedia('(pointer: coarse)').matches)
+  // Capped at 1.25: at retina sizes 1.5x+ drops to ~40 fps on an M2 for little visible gain
+  const [dpr, setDpr] = useState(() => Math.min(1.25, window.devicePixelRatio))
+  // Post-processing on desktop only; bloom is dropped if the frame rate struggles
+  const [fullFx, setFullFx] = useState(true)
   const [showSuperIntro, setShowSuperIntro] = useState(false)
   const superIntroFiredRef = useRef(false)
 
@@ -85,10 +92,6 @@ export default function GamePortfolio() {
   useEffect(() => {
     const ok = hasWebGL()
     setWebgl(ok)
-    const mobile = window.matchMedia('(pointer: coarse)').matches
-    setIsMobile(mobile)
-    setDpr(mobile ? 1.25 : Math.min(2, window.devicePixelRatio))
-    setHq(!mobile)
     if (!ok) return
     document.documentElement.classList.add('game-active')
     return () => document.documentElement.classList.remove('game-active')
@@ -191,7 +194,7 @@ export default function GamePortfolio() {
   const showChrome = isReady && !introOpen
 
   return (
-    <div className="fixed inset-0 z-10 overflow-hidden" style={{ background: '#d4e9f0' }}>
+    <div id="game" data-fx={isMobile ? 'none' : fullFx ? 'full' : 'lite'} className="fixed inset-0 z-10 overflow-hidden" style={{ background: '#d4e9f0' }}>
       {/* Loading overlay — fades out once fonts/textures are ready */}
       <div
         className="absolute inset-0 z-50 flex items-center justify-center bg-cream transition-opacity duration-700"
@@ -217,7 +220,8 @@ export default function GamePortfolio() {
           style={{ touchAction: 'none' }}
           aria-hidden
         >
-          <PerformanceMonitor onDecline={() => { setDpr(1); setHq(false) }} />
+          {/* Drop bloom + resolution if we can't hold ~50 fps (60+ on high-refresh screens) */}
+          <PerformanceMonitor bounds={(hz) => (hz > 100 ? [60, 100] : [50, 60])} onDecline={() => { setDpr(1); setFullFx(false) }} />
           <Suspense fallback={null}>
             <GameScene
               onZoneChange={handleZoneChange}
@@ -232,9 +236,10 @@ export default function GamePortfolio() {
               teleportTargetRef={teleportTargetRef}
               cinematicRef={cinematicRef}
             />
+            <Preload all />
             <Ready onReady={handleReady} />
           </Suspense>
-          {hq && <Effects />}
+          {!isMobile && <Effects full={fullFx} />}
         </Canvas>
       )}
 
@@ -279,7 +284,7 @@ export default function GamePortfolio() {
       <div className="absolute top-4 left-3 md:top-6 md:left-7 z-30 transition-opacity duration-500" style={{ opacity: showChrome ? 1 : 0, pointerEvents: showChrome ? 'auto' : 'none' }}>
         <div className="glass rounded-2xl px-3.5 py-2">
           <p className="text-[0.95rem] md:text-[1.1rem] font-black text-navy leading-tight">{INTRO.name}</p>
-          <p className="text-[0.58rem] md:text-[0.62rem] font-bold uppercase tracking-widest text-navy/55">{INTRO.role}</p>
+          <p className="hidden md:block text-[0.62rem] font-bold uppercase tracking-widest text-navy/55">{INTRO.role}</p>
         </div>
       </div>
 
@@ -300,7 +305,7 @@ export default function GamePortfolio() {
 
       {showChrome && (
         <>
-          <div className={isMobile ? 'absolute top-[60px] left-0 right-0' : ''}>
+          <div className={isMobile ? 'absolute top-[60px] landscape:top-0 left-0 right-0' : ''}>
             <NavBar activeZone={activeZone} onNavigate={handleNavigate} isMobile={isMobile} />
           </div>
           <MissionHUD missions={missions} coinCount={coinCount} ringCount={ringCount} isMobile={isMobile} />
@@ -368,7 +373,7 @@ export default function GamePortfolio() {
       {toast && (
         <div
           key={toast.key}
-          className="absolute top-[164px] md:top-24 left-1/2 pointer-events-none z-40"
+          className={`absolute left-1/2 pointer-events-none z-40 ${isMobile ? 'top-[164px] landscape:top-auto landscape:bottom-8' : 'top-24'}`}
           style={{ animation: 'toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards' }}
           role="status"
         >

@@ -133,8 +133,12 @@ export default function ZonePanel({ activeZone, isMobile }: { activeZone: Zone; 
 
   if (isMobile && !expanded) {
     return (
-      <div ref={panelRef} className="absolute left-1/2 -translate-x-1/2 z-[25]" style={{ bottom: 'calc(168px + env(safe-area-inset-bottom, 0px))' }}>
-        <button onClick={() => setExpanded(true)} className="flex items-center gap-2 pl-4 pr-3 py-2 rounded-full shadow-xl text-white" style={{ background: accent }}>
+      // Flex centring, not translate: the GSAP entrance tween owns the transform
+      <div
+        ref={panelRef}
+        className="absolute left-0 right-0 z-[25] flex justify-center pointer-events-none bottom-[calc(168px+env(safe-area-inset-bottom,0px))] landscape:bottom-auto landscape:top-16 landscape:justify-end landscape:pr-3"
+      >
+        <button onClick={() => setExpanded(true)} className="pointer-events-auto flex items-center gap-2 pl-4 pr-3 py-2 rounded-full shadow-xl text-white" style={{ background: accent }}>
           <span className="text-[0.68rem] font-black uppercase tracking-widest">{data.tag}</span>
           <span className="text-[0.75rem] leading-none">▴</span>
         </button>
@@ -157,10 +161,14 @@ export default function ZonePanel({ activeZone, isMobile }: { activeZone: Zone; 
 
   if (isMobile) {
     return (
-      <div ref={panelRef} className="absolute bottom-0 left-0 right-0 z-[25]">
-        <div className="rounded-t-3xl overflow-hidden shadow-2xl bg-white/95 backdrop-blur-lg">
+      // Floats above the joystick/buttons (portrait) or top-right (landscape) so you can read and keep moving
+      <div
+        ref={panelRef}
+        className="absolute z-[25] left-3 right-3 bottom-[calc(168px+env(safe-area-inset-bottom,0px))] landscape:left-auto landscape:bottom-auto landscape:top-16 landscape:w-[min(360px,48vw)]"
+      >
+        <div className="rounded-3xl overflow-hidden shadow-2xl bg-white/95 backdrop-blur-lg">
           {header}
-          <div className="overflow-y-auto px-5 py-4" style={{ maxHeight: '42vh', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 150px)' }}>
+          <div className="overflow-y-auto px-5 py-4 max-h-[min(40vh,calc(100vh_-_414px))] landscape:max-h-[calc(100vh_-_230px)]">
             <PanelContent zone={zone} />
           </div>
         </div>

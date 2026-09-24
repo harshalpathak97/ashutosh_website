@@ -109,18 +109,20 @@ export default function MobileControls({ touchInputRef, scooterTriggerRef, jumpT
       </div>
 
       {/* Right-side buttons */}
-      <div className="flex flex-col items-end gap-2 mb-1">
+      <div className="flex flex-row items-end gap-3 mb-1">
         {/* Jump button — only when on scooter */}
         {isOnScooter && (
           <div className="flex flex-col items-center gap-1">
             <button
-              onTouchStart={(e) => { e.preventDefault(); jumpTriggerRef.current = true }}
+              onPointerDown={() => { jumpTriggerRef.current = true }}
+              aria-label="Jump"
               className="w-[56px] h-[56px] rounded-full flex items-center justify-center text-[1.4rem] active:scale-90 select-none"
               style={{
                 background: 'rgba(0,200,240,0.75)',
                 border: '2.5px solid rgba(0,200,240,0.4)',
                 backdropFilter: 'blur(10px)',
                 WebkitBackdropFilter: 'blur(10px)',
+                touchAction: 'none',
               }}
             >
               ↑
@@ -131,7 +133,8 @@ export default function MobileControls({ touchInputRef, scooterTriggerRef, jumpT
         {/* Scooter toggle */}
         <div className="flex flex-col items-center gap-1">
           <button
-            onTouchStart={(e) => { e.preventDefault(); scooterTriggerRef.current = true }}
+            onPointerDown={() => { scooterTriggerRef.current = true }}
+            aria-label="Scooter"
             className="w-[64px] h-[64px] rounded-full flex items-center justify-center text-[1.6rem] active:scale-90 select-none"
             style={{
               background: isOnScooter ? 'rgba(255,140,0,0.88)' : 'rgba(26,47,92,0.45)',
@@ -139,6 +142,7 @@ export default function MobileControls({ touchInputRef, scooterTriggerRef, jumpT
               backdropFilter: 'blur(10px)',
               WebkitBackdropFilter: 'blur(10px)',
               transition: 'background 0.2s, border-color 0.2s',
+              touchAction: 'none',
             }}
           >
             🛵
