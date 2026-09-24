@@ -13,6 +13,6 @@ The e2e suite (`scripts/e2e.mjs`) drives the real game: walking, collisions, zon
 scooter stars, mobile joystick/layout, reduced motion, no-WebGL and no-JS fallbacks. It uses the
 installed Google Chrome and loads the page with `?debug`, which exposes read-only state on `window.__game`.
 
-Pushing to `main` builds and deploys `out/` to Hostinger (`.github/workflows/deploy.yml`, needs the `SSH_PRIVATE_KEY` secret).
+Hosted on Vercel (project `ashutoshpathak`, connected to this repo): every push to `main` deploys to production, other branches get preview URLs.
 
 Content (bio, case studies, links) lives in `components/content.ts`.
